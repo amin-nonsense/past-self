@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { loadData, saveData, addFragment, mergePastSelf, AppData, HistoryEntry } from "@/lib/storage";
+import { addFragment, mergePastSelf, AppData, HistoryEntry } from "@/lib/storage";
 
 declare global {
   interface Window {
@@ -52,6 +52,9 @@ const SendIcon = () => (
 );
 
 export default function Home() {
+  const [pin, setPin] = useState<string | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
   const [appData, setAppData] = useState<AppData | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -67,21 +70,69 @@ export default function Home() {
   const DELAY_MIN = 0;
   const DELAY_MAX = 0;
 
-  useEffect(() => {
-    const data = loadData();
-    setAppData(data);
+  const defaultAppData = (): AppData => ({
+    pastSelf: { places: [], things: [], people: [], habits: [], emotions: [], selfImage: [] },
+    presentSelf: {},
+    history: [],
+    letterCount: 0,
+  });
 
+  const loadFromKV = async (p: string) => {
+    const res = await fetch("/api/data/load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: p }),
+    });
+    const { data } = await res.json();
+    return (data as AppData) ?? defaultAppData();
+  };
+
+  const saveToKV = async (p: string, data: AppData) => {
+    await fetch("/api/data/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: p, data }),
+    });
+  };
+
+  const handlePinSubmit = async () => {
+    const p = pinInput.trim();
+    if (!p) return;
+    const data = await loadFromKV(p);
+    setPin(p);
+    setAppData(data);
     const restoredLetters = data.history
       .filter((m) => m.role === "assistant")
       .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
       .reverse();
     setLetters(restoredLetters);
-
     const restoredFragments = data.history
       .filter((m) => m.role === "user")
       .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
       .reverse();
     setFragments(restoredFragments);
+  };
+
+  useEffect(() => {
+    const savedPin = localStorage.getItem("past-self-pin");
+    if (savedPin) {
+      setPinInput(savedPin);
+      loadFromKV(savedPin).then((data) => {
+        setPin(savedPin);
+        setAppData(data);
+        const restoredLetters = data.history
+          .filter((m) => m.role === "assistant")
+          .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
+          .reverse();
+        setLetters(restoredLetters);
+        const restoredFragments = data.history
+          .filter((m) => m.role === "user")
+          .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
+          .reverse();
+        setFragments(restoredFragments);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startRecording = () => {
@@ -115,7 +166,7 @@ export default function Home() {
   };
 
   const sendFragment = async () => {
-    if (!transcript.trim() || !appData) return;
+    if (!transcript.trim() || !appData || !pin) return;
     const fragment = transcript;
     const now = new Date().toISOString();
     setTranscript("");
@@ -124,7 +175,7 @@ export default function Home() {
     const newCount = updatedData.letterCount + 1;
     const askAboutPast = newCount % 5 === 0;
     const dataWithCount = { ...updatedData, letterCount: newCount };
-    saveData(dataWithCount);
+    await saveToKV(pin, dataWithCount);
     setAppData(dataWithCount);
     setStatus("waiting");
 
@@ -168,7 +219,7 @@ export default function Home() {
           history: newHistory,
           pastSelf: updatedPastSelf,
         };
-        saveData(finalData);
+        await saveToKV(pin!, finalData);
         setAppData(finalData);
 
         const newLetter: Letter = { id: letterTime, text: letter, timestamp: letterTime };
@@ -183,6 +234,32 @@ export default function Home() {
   };
 
   const hasHistory = letters.length > 0 || fragments.length > 0;
+
+  if (!pin) {
+    return (
+      <main style={{ backgroundColor: "#FFFFFF", minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", padding: "20px", fontFamily: "-apple-system, 'Hiragino Sans', sans-serif" }}>
+        <div style={{ width: "100%", maxWidth: "280px" }}>
+          <p style={{ textAlign: "center", color: "#999", fontSize: "11px", letterSpacing: "0.15em", marginBottom: "40px", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
+            過去のあみんから
+          </p>
+          <input
+            type="text"
+            placeholder="PIN"
+            value={pinInput}
+            onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
+            onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()}
+            style={{ width: "100%", border: "none", borderBottom: `1px solid ${pinError ? "#EF4444" : "#E0E0E0"}`, padding: "8px 0", fontSize: "18px", textAlign: "center", letterSpacing: "0.3em", outline: "none", marginBottom: "24px", boxSizing: "border-box", backgroundColor: "transparent" }}
+          />
+          <button
+            onClick={() => { localStorage.setItem("past-self-pin", pinInput.trim()); handlePinSubmit(); }}
+            style={{ width: "100%", padding: "13px", backgroundColor: pinInput.trim() ? "#2D2D2D" : "#EEE", color: pinInput.trim() ? "#FFF" : "#AAA", border: "none", borderRadius: "2px", fontSize: "13px", cursor: pinInput.trim() ? "pointer" : "default", fontFamily: "inherit" }}
+          >
+            入る
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main style={{ backgroundColor: "#FFFFFF", minHeight: "100vh", display: "flex", justifyContent: "center", padding: "56px 20px 40px", fontFamily: "-apple-system, 'Hiragino Sans', sans-serif" }}>
