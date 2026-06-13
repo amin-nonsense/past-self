@@ -17,8 +17,39 @@ type Fragment = { id: string; text: string; timestamp: string };
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function groupByDate<T extends { timestamp: string }>(items: T[]): { date: string; items: T[] }[] {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.timestamp ? formatDate(item.timestamp) : "日付不明";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+  return Array.from(map.entries()).map(([date, items]) => ({ date, items }));
+}
+
+const MicIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+    <line x1="12" y1="19" x2="12" y2="23"/>
+    <line x1="8" y1="23" x2="16" y2="23"/>
+  </svg>
+);
+
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
 
 export default function Home() {
   const [appData, setAppData] = useState<AppData | null>(null);
@@ -191,7 +222,7 @@ export default function Home() {
         {(status === "idle" || status === "reply") && (
           <div>
             <textarea
-              placeholder={status === "reply" ? "返事を書く..." : "今日のことを話すか、書いてください"}
+              placeholder={status === "reply" ? "返事を書く..." : "今日のことを教えて"}
               value={transcript + interim}
               onChange={(e) => setTranscript(e.target.value)}
               style={{ width: "100%", backgroundColor: "transparent", border: "none", borderBottom: "1px solid #E0E0E0", padding: "8px 0", fontSize: "14px", color: "#2D2D2D", fontFamily: "inherit", resize: "none", minHeight: "100px", outline: "none", lineHeight: "1.9", boxSizing: "border-box" }}
@@ -199,16 +230,16 @@ export default function Home() {
             <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
               <button
                 onClick={isRecording ? stopRecording : startRecording}
-                style={{ flex: 1, padding: "13px", backgroundColor: isRecording ? "#FEF2F2" : "transparent", color: isRecording ? "#EF4444" : "#999", border: "1px solid", borderColor: isRecording ? "#FECACA" : "#DDD", borderRadius: "2px", fontSize: "13px", fontFamily: "inherit", cursor: "pointer" }}
+                style={{ flex: 1, padding: "13px", backgroundColor: isRecording ? "#FEF2F2" : "transparent", color: isRecording ? "#EF4444" : "#999", border: "1px solid", borderColor: isRecording ? "#FECACA" : "#DDD", borderRadius: "2px", fontSize: "13px", fontFamily: "inherit", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
-                {isRecording ? "● 録音中" : "🎤 話す"}
+                {isRecording ? <><span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#EF4444", display: "inline-block" }} />録音中</> : <><MicIcon />話す</>}
               </button>
               <button
                 onClick={sendFragment}
                 disabled={!transcript.trim()}
-                style={{ flex: 1, padding: "13px", backgroundColor: transcript.trim() ? "#2D2D2D" : "#EEE", color: transcript.trim() ? "#FFF" : "#AAA", border: "none", borderRadius: "2px", fontSize: "13px", fontFamily: "inherit", cursor: transcript.trim() ? "pointer" : "default" }}
+                style={{ flex: 1, padding: "13px", backgroundColor: transcript.trim() ? "#2D2D2D" : "#EEE", color: transcript.trim() ? "#FFF" : "#AAA", border: "none", borderRadius: "2px", fontSize: "13px", fontFamily: "inherit", cursor: transcript.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
               >
-                送る
+                <SendIcon />送る
               </button>
             </div>
           </div>
@@ -223,41 +254,51 @@ export default function Home() {
                 onClick={() => setHistoryTab("letters")}
                 style={{ flex: 1, padding: "10px", fontSize: "11px", border: "none", backgroundColor: "transparent", borderBottom: historyTab === "letters" ? "2px solid #2D2D2D" : "2px solid transparent", color: historyTab === "letters" ? "#2D2D2D" : "#BBB", cursor: "pointer", fontFamily: "inherit" }}
               >
-                もらった手紙
+                届いた
               </button>
               <button
                 onClick={() => setHistoryTab("fragments")}
                 style={{ flex: 1, padding: "10px", fontSize: "11px", border: "none", backgroundColor: "transparent", borderBottom: historyTab === "fragments" ? "2px solid #2D2D2D" : "2px solid transparent", color: historyTab === "fragments" ? "#2D2D2D" : "#BBB", cursor: "pointer", fontFamily: "inherit" }}
               >
-                送ったこと
+                送った
               </button>
             </div>
 
             {historyTab === "letters" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                {letters.map((letter) => (
-                  <div key={letter.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
-                    {letter.timestamp && (
-                      <p style={{ fontSize: "10px", color: "#CCC", marginBottom: "8px" }}>{formatDate(letter.timestamp)}</p>
-                    )}
-                    <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
-                      {letter.text}
-                    </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+                {groupByDate(letters).map(({ date, items }) => (
+                  <div key={date}>
+                    <p style={{ fontSize: "10px", color: "#CCC", letterSpacing: "0.05em", marginBottom: "16px" }}>{date}</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      {items.map((letter) => (
+                        <div key={letter.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
+                          <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(letter.timestamp)}</p>
+                          <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
+                            {letter.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
             {historyTab === "fragments" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                {fragments.map((fragment) => (
-                  <div key={fragment.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
-                    {fragment.timestamp && (
-                      <p style={{ fontSize: "10px", color: "#CCC", marginBottom: "8px" }}>{formatDate(fragment.timestamp)}</p>
-                    )}
-                    <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>
-                      {fragment.text}
-                    </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+                {groupByDate(fragments).map(({ date, items }) => (
+                  <div key={date}>
+                    <p style={{ fontSize: "10px", color: "#CCC", letterSpacing: "0.05em", marginBottom: "16px" }}>{date}</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      {items.map((fragment) => (
+                        <div key={fragment.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
+                          <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(fragment.timestamp)}</p>
+                          <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>
+                            {fragment.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
