@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { loadData, saveData, addFragment, mergePastSelf, AppData } from "@/lib/storage";
+import { loadData, saveData, addFragment, mergePastSelf, AppData, HistoryEntry } from "@/lib/storage";
 
 declare global {
   interface Window {
@@ -12,7 +12,13 @@ declare global {
   }
 }
 
-type Letter = { id: string; text: string };
+type Letter = { id: string; text: string; timestamp: string };
+type Fragment = { id: string; text: string; timestamp: string };
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 export default function Home() {
   const [appData, setAppData] = useState<AppData | null>(null);
@@ -21,7 +27,9 @@ export default function Home() {
   const [interim, setInterim] = useState("");
   const [pendingLetter, setPendingLetter] = useState<Letter | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
+  const [fragments, setFragments] = useState<Fragment[]>([]);
   const [status, setStatus] = useState<"idle" | "waiting" | "arrived" | "reply">("idle");
+  const [historyTab, setHistoryTab] = useState<"letters" | "fragments">("letters");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
@@ -31,12 +39,18 @@ export default function Home() {
   useEffect(() => {
     const data = loadData();
     setAppData(data);
-    // historyから手紙一覧を復元
-    const restored = data.history
+
+    const restoredLetters = data.history
       .filter((m) => m.role === "assistant")
-      .map((m, i) => ({ id: String(i), text: m.content }))
+      .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
       .reverse();
-    setLetters(restored);
+    setLetters(restoredLetters);
+
+    const restoredFragments = data.history
+      .filter((m) => m.role === "user")
+      .map((m, i) => ({ id: String(i), text: m.content, timestamp: m.timestamp ?? "" }))
+      .reverse();
+    setFragments(restoredFragments);
   }, []);
 
   const startRecording = () => {
@@ -72,6 +86,7 @@ export default function Home() {
   const sendFragment = async () => {
     if (!transcript.trim() || !appData) return;
     const fragment = transcript;
+    const now = new Date().toISOString();
     setTranscript("");
 
     const updatedData = addFragment(appData, fragment);
@@ -81,6 +96,9 @@ export default function Home() {
     saveData(dataWithCount);
     setAppData(dataWithCount);
     setStatus("waiting");
+
+    const newFragment: Fragment = { id: now, text: fragment, timestamp: now };
+    setFragments((prev) => [newFragment, ...prev]);
 
     const delay = DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN);
 
@@ -98,13 +116,13 @@ export default function Home() {
         });
         const { letter } = await res.json();
 
-        const newHistory = [
+        const letterTime = new Date().toISOString();
+        const newHistory: HistoryEntry[] = [
           ...dataWithCount.history,
-          { role: "user" as const, content: fragment },
-          { role: "assistant" as const, content: letter },
+          { role: "user", content: fragment, timestamp: now },
+          { role: "assistant", content: letter, timestamp: letterTime },
         ];
 
-        // 直近やりとりからpastSelfを更新
         const recentConversation = `大人のあみん：${fragment}\n小学生のあみん：${letter}`;
         const extractRes = await fetch("/api/extract", {
           method: "POST",
@@ -122,7 +140,7 @@ export default function Home() {
         saveData(finalData);
         setAppData(finalData);
 
-        const newLetter: Letter = { id: Date.now().toString(), text: letter };
+        const newLetter: Letter = { id: letterTime, text: letter, timestamp: letterTime };
         setPendingLetter(newLetter);
         setLetters((prev) => [newLetter, ...prev]);
         setStatus("arrived");
@@ -132,6 +150,8 @@ export default function Home() {
       }
     }, delay);
   };
+
+  const hasHistory = letters.length > 0 || fragments.length > 0;
 
   return (
     <main style={{ backgroundColor: "#FFFFFF", minHeight: "100vh", display: "flex", justifyContent: "center", padding: "56px 20px 40px", fontFamily: "-apple-system, 'Hiragino Sans', sans-serif" }}>
@@ -194,18 +214,54 @@ export default function Home() {
           </div>
         )}
 
-        {letters.length > 0 && status === "idle" && (
+        {/* 履歴エリア */}
+        {hasHistory && status === "idle" && (
           <div style={{ marginTop: "48px" }}>
-            <p style={{ fontSize: "10px", color: "#CCC", letterSpacing: "0.1em", marginBottom: "20px" }}>これまでの手紙</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              {letters.map((letter) => (
-                <div key={letter.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
-                  <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
-                    {letter.text}
-                  </p>
-                </div>
-              ))}
+            {/* タブ */}
+            <div style={{ display: "flex", borderBottom: "1px solid #EEE", marginBottom: "24px" }}>
+              <button
+                onClick={() => setHistoryTab("letters")}
+                style={{ flex: 1, padding: "10px", fontSize: "11px", border: "none", backgroundColor: "transparent", borderBottom: historyTab === "letters" ? "2px solid #2D2D2D" : "2px solid transparent", color: historyTab === "letters" ? "#2D2D2D" : "#BBB", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                もらった手紙
+              </button>
+              <button
+                onClick={() => setHistoryTab("fragments")}
+                style={{ flex: 1, padding: "10px", fontSize: "11px", border: "none", backgroundColor: "transparent", borderBottom: historyTab === "fragments" ? "2px solid #2D2D2D" : "2px solid transparent", color: historyTab === "fragments" ? "#2D2D2D" : "#BBB", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                送ったこと
+              </button>
             </div>
+
+            {historyTab === "letters" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {letters.map((letter) => (
+                  <div key={letter.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
+                    {letter.timestamp && (
+                      <p style={{ fontSize: "10px", color: "#CCC", marginBottom: "8px" }}>{formatDate(letter.timestamp)}</p>
+                    )}
+                    <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
+                      {letter.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {historyTab === "fragments" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {fragments.map((fragment) => (
+                  <div key={fragment.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
+                    {fragment.timestamp && (
+                      <p style={{ fontSize: "10px", color: "#CCC", marginBottom: "8px" }}>{formatDate(fragment.timestamp)}</p>
+                    )}
+                    <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>
+                      {fragment.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

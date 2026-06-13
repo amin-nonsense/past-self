@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const { fragment, history, appData, askAboutPast } = await req.json();
 
   const messages = [
-    ...(history || []),
+    ...(history || []).map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
     { role: "user", content: fragment },
   ];
 

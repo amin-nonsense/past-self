@@ -13,10 +13,16 @@ export type MonthlyPresent = {
   feelings: string[];
 };
 
+export type HistoryEntry = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string; // ISO 8601
+};
+
 export type AppData = {
   pastSelf: PastSelf;
   presentSelf: Record<string, MonthlyPresent>;
-  history: { role: "user" | "assistant"; content: string }[];
+  history: HistoryEntry[];
   letterCount: number;
 };
 
