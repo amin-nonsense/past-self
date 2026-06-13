@@ -5,8 +5,10 @@ import { loadData, saveData, addFragment, mergePastSelf, AppData } from "@/lib/s
 
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    SpeechRecognition: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    webkitSpeechRecognition: any;
   }
 }
 
@@ -20,7 +22,8 @@ export default function Home() {
   const [pendingLetter, setPendingLetter] = useState<Letter | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
   const [status, setStatus] = useState<"idle" | "waiting" | "arrived" | "reply">("idle");
-  const recognitionRef = useRef<InstanceType<typeof SpeechRecognition> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
   const DELAY_MIN = 0;
   const DELAY_MAX = 0;
@@ -43,7 +46,8 @@ export default function Home() {
     recognition.lang = "ja-JP";
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
       let finalText = "";
       let interimText = "";
       for (let i = 0; i < event.results.length; i++) {
