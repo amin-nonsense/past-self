@@ -28,7 +28,7 @@ function formatTime(iso: string): string {
 function groupByDate<T extends { timestamp: string }>(items: T[]): { date: string; items: T[] }[] {
   const map = new Map<string, T[]>();
   for (const item of items) {
-    const key = item.timestamp ? formatDate(item.timestamp) : "日付不明";
+    const key = item.timestamp ? formatDate(item.timestamp) : formatDate(new Date().toISOString());
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(item);
   }
