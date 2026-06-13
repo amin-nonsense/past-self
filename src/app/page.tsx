@@ -98,7 +98,23 @@ export default function Home() {
   const handlePinSubmit = async () => {
     const p = pinInput.trim();
     if (!p) return;
-    const data = await loadFromKV(p);
+    let data = await loadFromKV(p);
+
+    // localStorageに古いデータがあれば一度だけ移行
+    if (data.history.length === 0) {
+      const raw = localStorage.getItem("past-self-data");
+      if (raw) {
+        try {
+          const legacy = JSON.parse(raw) as AppData;
+          if (legacy.history && legacy.history.length > 0) {
+            data = legacy;
+            await saveToKV(p, data);
+            localStorage.removeItem("past-self-data");
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
     setPin(p);
     setAppData(data);
     const restoredLetters = data.history
