@@ -365,7 +365,7 @@ export default function Home() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                       {items.map((letter) => (
                         <div key={letter.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
-                          <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(letter.timestamp)}</p>
+                          {letter.timestamp && <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(letter.timestamp)}</p>}
                           <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap", fontFamily: "'Noto Serif JP', Georgia, serif" }}>
                             {letter.text}
                           </p>
@@ -385,7 +385,7 @@ export default function Home() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                       {items.map((fragment) => (
                         <div key={fragment.id} style={{ borderLeft: "1px solid #EEE", paddingLeft: "16px" }}>
-                          <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(fragment.timestamp)}</p>
+                          {fragment.timestamp && <p style={{ fontSize: "10px", color: "#DDD", marginBottom: "8px" }}>{formatTime(fragment.timestamp)}</p>}
                           <p style={{ fontSize: "13px", color: "#AAA", lineHeight: "1.9", whiteSpace: "pre-wrap" }}>
                             {fragment.text}
                           </p>
