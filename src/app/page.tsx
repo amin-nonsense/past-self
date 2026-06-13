@@ -3,6 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { loadData, saveData, addFragment, mergePastSelf, AppData } from "@/lib/storage";
 
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
+
 type Letter = { id: string; text: string };
 
 export default function Home() {
@@ -13,7 +20,7 @@ export default function Home() {
   const [pendingLetter, setPendingLetter] = useState<Letter | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
   const [status, setStatus] = useState<"idle" | "waiting" | "arrived" | "reply">("idle");
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<InstanceType<typeof SpeechRecognition> | null>(null);
 
   const DELAY_MIN = 0;
   const DELAY_MAX = 0;
@@ -30,9 +37,7 @@ export default function Home() {
   }, []);
 
   const startRecording = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition ||
-      (window as Window & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) { alert("Chromeで開いてください"); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = "ja-JP";
